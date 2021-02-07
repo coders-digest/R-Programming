@@ -1,0 +1,250 @@
+---
+title: "dplyr"
+output: html_document
+---
+
+--------------------------------------------------------------------------------
+What is dplyr ?
+
+-dplyr is a tool for data exploration and manipulation. it is fast and help to attain more productivity in less time
+
+How do i install dplyr ?
+- you can use command install.packages("dplyr") or you can use install.packages("tidyverse")
+tidyverse is a collection of packages which contains dplyr
+
+
+What data i am using ?
+nyc data- 
+In this problem set we will use the data on all flights that departed NYC (i.e. JFK, LGA or EWR) in 2013. You can find this data as part of the nycflights13 R package. Data includes not only information about flights, but also data about planes, airports, weather, and airlines.
+
+
+US Arrests data- This data set contains statistics, in arrests per 100,000 residents
+for assault, murder, and rape in each of the 50 US states in 1973.
+Also given is the percent of the population living in urban areas.
+
+----------------------------------------------------------------------------------
+```{r}
+library(dplyr)
+```
+
+```{r}
+#print the structure of the data
+#base r approach
+#str(USArrests)
+
+#dplyr 
+#glimpse(USArrests)
+ #or 
+USArrests %>% glimpse()
+```
+
+```{r all equal }
+# prints weather 2 data frames have same data
+scrambledata <- function(x) x[sample(nrow(x)), sample(ncol(x))]
+all_equal(USArrests, scrambledata(USArrests), ignore_col_order = TRUE)
+```
+
+##Arrange function
+------------------------------------------------------
+```{r}
+# arrange your data frame based on certain columns
+# also can be set as descending and ascending order
+arrange(USArrests, Murder)
+arrange(USArrests, desc(Murder))
+arrange(USArrests, Murder,Assault )
+```
+
+
+
+## Case When
+```{r}
+#case when works like case in SQL
+# is used to manipulate data based on pre evaluated condition
+numbers <- 1:10
+case_when(
+  numbers %% 2 ==0  ̃  "Even" ,
+  numbers %% 2 !=0  ̃  "Odd" )
+```
+
+##coalesce function
+```{r}
+# Or match together a complete vector from missing pieces
+a <- c(1, 6, NA, NA, 5)
+b <- c(NA, NA, 3, 4, 5)
+coalesce(a, b)
+#> [1] 1 6 3 4 5
+```
+
+## Cumulative Mean
+```{r}
+x <- c(1, 3, 5, 2, 2)
+cummean(x)
+```
+
+#Between
+```{r}
+between(1:10, 5,10)
+```
+
+
+##  Analysis with flights data
+
+```{r}
+#install.packages("nycflights13")
+library(nycflights13)
+head(flights)
+```
+# Filter function
+```{r}
+flights %>% filter(year == 2013 & month == 2) 
+
+#with or condition
+flights %>% filter(carrier == 'UA' | carrier== 'DL') 
+
+#or can also write as 
+filter(flights, year ==2013)
+```
+
+## in operator
+```{r}
+flights %>% filter(carrier %in% c('UA', 'AA'))
+```
+
+
+## Selecting columns from a dataframe
+
+```{r}
+flights %>% select(year, month, day, arr_delay,carrier)
+```
+
+## Selecting columns based on condition
+```{r}
+flights %>% select_if(is.numeric)
+#filtered out the character columns
+```
+
+## Selecting using containing tag
+```{r}
+select(flights, contains("delay"), contains("time"))
+```
+
+## group by 
+```{r}
+# we will group our data by carrier, calculate average delay and 
+#sort in descending order
+flights %>% group_by(carrier) %>% 
+  summarise('AverageDelay' = mean(dep_delay, na.rm = TRUE)) %>%
+  arrange((AverageDelay))
+```
+## get the counts
+```{r}
+#we can also get the counts of each carrier occurrance
+flights %>% group_by(carrier) %>% 
+  summarise(count =n())  %>% arrange(desc(count))
+```
+
+
+
+# distinct function
+```{r}
+# lets get the distinct destination 
+distinct(flights, dest)
+# keeps all other variables also
+distinct(flights, dest, .keep_all = TRUE)
+```
+
+
+
+## mutate
+```{r}
+# Mutate is very helpful function and helps to create additional 
+# columns in the dataset based on specified condition
+flights %>% mutate('Speed'= distance/ air_time)
+```
+
+
+## If Else
+```{r}
+flights$flight_status = if_else(flights$dep_delay <=2, 'On Time','delayed')
+head(flights)
+```
+
+## summarise and summarise each
+```{r}
+
+#lets group our data by destination and check mean distance and air time
+flights %>% group_by(dest) %>%
+  summarise_each(funs(mean), c(distance, air_time ))
+
+## Lets calculate flights for each day of the month and year and arrange the
+#in descending order
+flights %>% group_by(year,month) %>%
+  summarise('Total_Flights' =n()) %>% arrange(desc(Total_Flights))
+## we see Nas because the columns contain NA values  but lets verify
+colnames(flights)[colSums(is.na(flights)) > 0]
+```
+
+
+# tally function
+
+```{r}
+# lets group our data by carrier and see which carrier has flown 
+# highest number of flights
+flights %>% group_by(carrier) %>% tally(sort= TRUE)
+```
+
+
+## n_distinct
+```{r}
+## this function is used with summarise and is very helpful in calculating the distict counts of occurances
+
+flights %>% group_by(dest) %>% summarise('unique carrier' = n_distinct(carrier), 'unique tail nums'= n_distinct(tailnum))
+```
+
+## joins
+```{r}
+df1 = data.frame(CustomerId = c(1:6), Product = c(rep("Trimmer", 3), rep("Radio", 3)))
+df2 = data.frame(CustomerId = c(2, 4, 6,10), State = c(rep("New York", 2), rep("California", 2)))
+df1
+df2
+
+```
+
+#left join
+```{r}
+left_joined <- left_join(df1,df2, by= "CustomerId")
+left_joined
+```
+# right join
+```{r}
+right_joined <- right_join(df1,df2, by= "CustomerId")
+right_joined
+```
+
+
+## inner join
+```{r}
+inner_joined <- inner_join(df1,df2, by= "CustomerId")
+inner_joined
+```
+```{r}
+# provides non matching in df2
+anti_join(df1,df2, by= "CustomerId")
+```
+
+
+## Sampling functions
+```{r}
+flights %>% sample_n(10)
+
+# sample base on percentage
+df_frac <- flights %>% sample_frac(.25, replace = FALSE)
+```
+
+
+## reaname function
+```{r}
+# this function is very helpful when you want to rename your columns
+newdata  <- flights %>% rename(destination = dest)
+```
+
