@@ -1,0 +1,50 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
+
+```{r}
+TitanicSurvival = read.csv('titanic.csv', header = TRUE)
+head(TitanicSurvival)
+```
+
+```{r split using catools}
+#install.packages("caTools")
+library(caTools)
+split = sample.split(TitanicSurvival$Survived, SplitRatio = 0.7)
+trainDataca = subset(TitanicSurvival, split == TRUE)
+testDataca = subset(TitanicSurvival, split == FALSE)
+prop.table(table(trainDataca$Survived))
+prop.table(table(testDataca$Survived))
+
+```
+
+
+## When y variable is unknown
+```{r}
+head(mtcars)
+indices = sample(1:nrow(mtcars), 0.7*nrow(mtcars))
+trainData = mtcars[indices,]
+testData = mtcars[-indices,]
+
+
+```
+
+
+```{r}
+library(dplyr)
+
+TitanicSurvival$id <- 1:nrow(TitanicSurvival)
+traindplyr <- TitanicSurvival %>% dplyr::sample_frac(.75)
+testdplyr  <- dplyr::anti_join(TitanicSurvival, traindplyr, by = 'id')
+
+prop.table(table(traindplyr$Survived))
+prop.table(table(testdplyr$Survived))
+
+```
+
+
