@@ -1,0 +1,233 @@
+---
+title: "cart model"
+output: html_notebook
+---
+
+ 
+## Loading required libraries
+```{r}
+library(caret)
+library(lattice)
+library(ggplot2)
+#library(scales)
+library(gtools)
+#library(CVST)
+library(caTools)
+library(rpart)
+library(rpart.plot)
+#library(rattle)
+library(RColorBrewer)
+library(data.table)
+library(ROCR)
+```
+
+
+### Set the working directory and load the data 
+```{r}
+# Setting the working directory
+setwd('E:/YoutubeTut/R/CART')
+
+# Import the dataset
+loan_Data = read.csv('personal_loan.csv')
+str(loan_Data)
+```
+
+
+
+
+#Convert to factors where relevant
+```{r}
+loan_Data$TARGET = factor(loan_Data$TARGET)
+loan_Data$FLG_HAS_CC = factor(loan_Data$FLG_HAS_CC)
+loan_Data$FLG_HAS_ANY_CHGS = factor(loan_Data$FLG_HAS_ANY_CHGS)
+loan_Data$FLG_HAS_NOMINEE = factor(loan_Data$FLG_HAS_NOMINEE)
+loan_Data$FLG_HAS_OLD_LOAN = factor(loan_Data$FLG_HAS_OLD_LOAN)
+```
+
+
+### Checking for missing values in the data
+```{r}
+cat("\n Variables with number of missing values \n")
+sapply(loan_Data, function(x) sum(is.na(x)) ) #to report missing values
+
+```
+
+# check for constant variables
+```{r}
+cat("\n Variables and the constancy of values \n")
+sapply(loan_Data, function(x) length(unique(x)))
+#cust_id and random has constant values - they need to be dropped
+
+```
+
+
+```{r}
+library(dplyr)
+#Lets see if women/ Men are more like to respond to the loan 
+loan_Data %>% filter(loan_Data$TARGET =='1') %>% group_by(GENDER )%>%count() ->data_gender
+# There ! we see that Males are more likely to respond to the loan which is apprx 77% of the responders
+library(ggplot2)
+data_gender
+ggplot(data = data_gender, aes(x=GENDER, y = n,  fill=GENDER )) + geom_bar(stat = "identity")
+```
+#remove redundant columns
+```{r}
+loan_Data$CUST_ID = NULL
+loan_Data$AGE_BKT = NULL
+loan_Data$ACC_OP_DATE = NULL
+loan_Data$random = NULL
+```
+
+#lets find the percent responder and non responder
+```{r}
+prop.table(table(loan_Data$TARGET))
+```
+
+
+#Splitting the dataset into Training set and Test set
+```{r}
+library(caTools)
+set.seed(123)
+
+split = sample.split(loan_Data$TARGET, SplitRatio = 0.7)
+trainData = subset(loan_Data, split == TRUE)
+testData = subset(loan_Data, split == FALSE)
+
+
+#Checking the distribution of test and train data
+dim(trainData)
+dim(testData)
+
+```
+
+
+
+```{r}
+## lets check the proportion of respondents in train and test data
+prop.table(table(trainData$TARGET))
+prop.table(table(testData$TARGET))
+```
+
+
+
+### Building the CART model
+```{r}
+training_set_CART <- trainData
+test_set_CART <- testData
+
+library(rpart)
+library(rpart.plot)
+library(rattle)
+
+set.seed(123)
+## setting up the control parameter for r part split
+rpart.ctrl = rpart.control(minsplit=100, minbucket = 10, cp = 0, xval = 10)
+
+
+cartmodel <- rpart(formula = training_set_CART$TARGET ~ .,
+                 data = training_set_CART,
+                 method = "class",
+                 control = rpart.ctrl)
+cartmodel
+```
+
+
+```{r}
+#lets plot the decisiontree
+fancyRpartPlot(cartmodel)
+```
+
+
+
+```{r}
+## to find how the tree performs
+printcp(cartmodel)
+```
+
+
+
+#Pruning
+```{r}
+# finding the opt value and using that to prune the tree
+bestcp <- cartmodel$cptable[which.min(cartmodel$cptable[,"xerror"]),"CP"]
+prunedmodel<-prune(cartmodel,cp=bestcp)
+fancyRpartPlot(prunedmodel, main="Pruned Tree")
+```
+
+```{r}
+printcp(prunedmodel)
+```
+
+
+## Prediction on train data
+
+```{r}
+threshold =.5
+#training_set_CART$predict.class <- predict(ptree, training_set_CART, type="class")
+training_set_CART$predict.score <- predict(prunedmodel, training_set_CART, type="prob")
+training_set_CART$predict.class <- ifelse(training_set_CART$predict.score[,2] > threshold,1,0)
+#Lets check the confusion matrix 
+with(training_set_CART, table(TARGET, predict.class))
+# > 1560+90/14000
+# zo we have 11.75 % classification error
+```
+
+
+###  Model Performance  ###
+```{r}
+with(training_set_CART,table(TARGET, predict.class))
+
+
+library(caret)
+y <- as.factor(training_set_CART$TARGET)
+predictions <- as.factor(training_set_CART$predict.class)
+
+precision <- posPredValue(predictions, y, positive="1")
+recall <- sensitivity(predictions, y, positive="1")
+tnr <- specificity(predictions, y, positive="1")
+
+F1 <- (2 * precision * recall) / (precision + recall)
+
+paste("precision is ", precision)
+paste("recall is ", recall)
+paste("specifity is ", tnr)
+```
+
+
+
+
+
+# Prediction on test data
+```{r}
+## Scoring test data
+test_set_CART$predict.class <- predict(prunedmodel, test_set_CART, type="class")
+test_set_CART$predict.score <- predict(prunedmodel, test_set_CART)
+
+```
+
+## Model performance on test data
+```{r}
+library(caret)
+with(test_set_CART,table(TARGET, predict.class))
+
+y <- as.factor(test_set_CART$TARGET)
+predictions <- as.factor(test_set_CART$predict.class)
+
+precision <- posPredValue(predictions, y, positive="1")
+recall <- sensitivity(predictions, y, positive="1")
+tnr <- specificity(predictions, y, positive="1")
+
+F1 <- (2 * precision * recall) / (precision + recall)
+
+paste("precision is ", precision)
+paste("recall is ", recall)
+paste("specifity is ", tnr)
+```
+
+
+
+```{r}
+summary(cartmodel)
+```
+
+
